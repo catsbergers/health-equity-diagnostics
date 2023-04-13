@@ -1,0 +1,24 @@
+name: health
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - beautifulsoup4
+  - contextily
+  - geopandas
+  - geopy
+  - ipykernel
+  - jupyter
+  - libblas
+  - matplotlib
+  - numpy
+  - pandas
+  - pycountry
+  - python>=3.8
+  - python-dotenv
+  - requests
+  - shapely
+  - thefuzz
+  - tqdm
+
+
