@@ -1,17 +1,10 @@
-import os, sys
+import os
 import geopandas as gpd
-import jellyfish
+import numpy as np
 import pandas as pd
-from geopy.geocoders import GeoNames, Nominatim, Bing, GoogleV3
-from shapely.geometry import Point
-from tqdm import tqdm
-from thefuzz import fuzz
-from thefuzz import process
-import matplotlib.pyplot as plt
+import regex as re
 from string import ascii_uppercase
-import contextily as ctx
-from os.path import join
-from dotenv import load_dotenv, find_dotenv
+
 
 COLS_TO_DROP = ['periodid', 'periodname', 'periodcode', 'perioddescription', 'dataid', 'dataname',
                        'datacode', 'datadescription', 'Total', 'date_downloaded']
@@ -36,7 +29,19 @@ def remove_words(data_frame, column_name, words_to_remove=WORDS_TO_REMOVE):
     data_frame[column_name] = data_frame[column_name].str.strip()
     data_frame[column_name] = data_frame[column_name].sort_values()
     return_list = data_frame[column_name].unique()
+    return_list = return_list[~pd.isna(return_list)]
     return return_list
+
+def remove_from_front(location_list, words_to_remove):
+    new_loc_list = []
+    location_list = np.unique(location_list)
+    for loc_word in location_list:
+        for front_bad_word in words_to_remove:
+            loc_word = re.sub(f"^{front_bad_word}\s", "", loc_word)
+
+        new_loc_list.append(loc_word)
+    new_loc_list = np.unique(new_loc_list)
+    return new_loc_list
 
 def get_geoboundares(num_admin_levels, iso3):
     """ Get the geoBoundaries for a specific country
