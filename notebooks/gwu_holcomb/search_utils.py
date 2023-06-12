@@ -1,19 +1,9 @@
-import os, sys
-import geopandas as gpd
 import jellyfish
 import numpy as np
 import pandas as pd
-from geopy.geocoders import GeoNames, Nominatim, Bing, GoogleV3
-from shapely.geometry import Point
-from tqdm import tqdm
 from thefuzz import fuzz
 import regex as re
-from thefuzz import process
-import matplotlib.pyplot as plt
-from string import ascii_uppercase
-import contextily as ctx
-from os.path import join
-from dotenv import load_dotenv, find_dotenv
+
 
 
 def match_name_old(name, list_names, min_score=0):
