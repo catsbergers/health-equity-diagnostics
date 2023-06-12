@@ -8,8 +8,7 @@ from string import ascii_uppercase
 
 COLS_TO_DROP = ['periodid', 'periodname', 'periodcode', 'perioddescription', 'dataid', 'dataname',
                        'datacode', 'datadescription', 'Total', 'date_downloaded']
-CHECK_DUPLICATE_COLS = ['orgunitlevel2', 'orgunitlevel3', 'orgunitlevel4', 'organisationunitid',
-                                         'organisationunitname']
+CHECK_DUPLICATE_COLS = ['orgunitlevel2', 'orgunitlevel3', 'orgunitlevel4', 'organisationunitid']
 WORDS_TO_REMOVE = ['community', 'clinic', 'centre', 'center', 'hospital', 'health', 'government']
 
 def remove_words(data_frame, column_name, words_to_remove=WORDS_TO_REMOVE):
@@ -24,6 +23,7 @@ def remove_words(data_frame, column_name, words_to_remove=WORDS_TO_REMOVE):
         Removes words in place
 
     """
+    data_frame[column_name] = data_frame[column_name].str.lower()
     for word in words_to_remove:
         data_frame[column_name] = data_frame[column_name].str.replace(word, "")
     data_frame[column_name] = data_frame[column_name].str.strip()
@@ -31,6 +31,27 @@ def remove_words(data_frame, column_name, words_to_remove=WORDS_TO_REMOVE):
     return_list = data_frame[column_name].unique()
     return_list = return_list[~pd.isna(return_list)]
     return return_list
+
+def remove_words_df(data_frame, column_name, words_to_remove=WORDS_TO_REMOVE):
+    """ Remove words from strings in a specified column
+
+    Args:
+        data_frame: Pandas data frame
+        column_name: Column name to remove words from
+        words_to_remove: List of words
+
+    Returns:
+        Removes words in place
+
+    """
+    data_frame[column_name] = data_frame[column_name].str.lower()
+    for word in words_to_remove:
+        data_frame[column_name] = data_frame[column_name].str.replace(word, "")
+    data_frame[column_name] = data_frame[column_name].str.strip()
+    data_frame[column_name] = data_frame[column_name].sort_values()
+    data_frame.drop_duplicates(subset=[column_name], keep='first', inplace=True)
+    data_frame.dropna(subset=[column_name], inplace=True)
+    return data_frame
 
 def remove_from_front(location_list, words_to_remove):
     new_loc_list = []
@@ -40,10 +61,25 @@ def remove_from_front(location_list, words_to_remove):
             loc_word = re.sub(f"^{front_bad_word}\s", "", loc_word)
 
         new_loc_list.append(loc_word)
+    new_loc_list = [x.strip() for x in new_loc_list]
     new_loc_list = np.unique(new_loc_list)
     return new_loc_list
 
-def get_geoboundares(num_admin_levels, iso3):
+
+def removeFF_lambda(word, words_to_remove):
+    for front_bad_word in words_to_remove:
+        word = re.sub(f"^{front_bad_word}\s", "", word)
+
+    return word
+
+
+def remove_from_front_df(data_frame, column_name, words_to_remove):
+    data_frame[column_name] = data_frame[column_name].apply(lambda x: removeFF_lambda(x, words_to_remove))
+    data_frame.drop_duplicates(subset=[column_name], keep='first', inplace=True)
+    return data_frame
+
+
+def get_geoboundaries(num_admin_levels, iso3):
     """ Get the geoBoundaries for a specific country
 
         Args:
@@ -64,7 +100,7 @@ def get_geoboundares(num_admin_levels, iso3):
 
     return geob_arr
 
-def process_masterDF(input_dir, input_filename, cols_to_drop=COLS_TO_DROP, check_dupe_cols=CHECK_DUPLICATE_COLS):
+def process_masterDF(input_dir, input_filename, num_org_levels, cols_to_drop=COLS_TO_DROP, check_dupe_cols=CHECK_DUPLICATE_COLS):
     master_table = pd.read_csv(os.path.join(input_dir, input_filename), low_memory=False)
     print(f"Len of original data: {len(master_table)}")
     master_table.drop(cols_to_drop, axis=1, inplace=True)
@@ -72,10 +108,9 @@ def process_masterDF(input_dir, input_filename, cols_to_drop=COLS_TO_DROP, check
     master_table.reset_index(inplace=True)
     print(f"Len of clean data: {len(master_table)}\n")
 
-    print(f"Unique Level 2: {len(master_table.orgunitlevel2.unique())}")
-    print(f"Unique Level 3: {len(master_table.orgunitlevel3.unique())}")
-    print(f"Unique Level 4: {len(master_table.orgunitlevel4.unique())}")
-    print(f"Unique Level 5: {len(master_table.organisationunitname.unique())}")
+    for orgNum in range(2, num_org_levels+1):
+        the_len = len(master_table[f"orgunitlevel{orgNum}"].unique())
+        print(f"Unique Level {orgNum}: {the_len}")
 
     return master_table
 
@@ -92,4 +127,11 @@ def inspect_level_names(org_unit_level, org_level_list, geob_level, geob_list):
             print("\t" + str(geob_sublist))
 
         print("\n")
+
+def getName(row, num_org_levels):
+    for org_idx in range(num_org_levels-1, 0, -1): # reverse order
+        if pd.notna(row[f'orgunitlevel{org_idx}']):
+            return row[f'orgunitlevel{org_idx}'].lower()
+
+    return "none"
 

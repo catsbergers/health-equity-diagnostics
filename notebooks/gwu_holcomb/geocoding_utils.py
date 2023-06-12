@@ -1,17 +1,8 @@
-import os, sys
 import geopandas as gpd
-import jellyfish
 import pandas as pd
 from geopy.geocoders import GeoNames, Nominatim, Bing, GoogleV3
 from shapely.geometry import Point
-from tqdm import tqdm
-from thefuzz import fuzz
-from thefuzz import process
-import matplotlib.pyplot as plt
-from string import ascii_uppercase
-import contextily as ctx
-from os.path import join
-from dotenv import load_dotenv, find_dotenv
+
 
 def report_geocoding(records):
     """ Report value counts and % from geocoding_method column.
@@ -22,7 +13,7 @@ def report_geocoding(records):
     Returns:
         Table with count stats
     """
-    table = records[['NAME', 'geocoding_method']].groupby('geocoding_method').count().rename(columns={'NAME' :'count'})
+    table = records[['NAME', 'geocoding_method']].groupby('geocoding_method').count().rename(columns={'NAME': 'count'})
     table.loc[:, "pct"] = table /(table['count'].sum())
     table = table.style.format({
         'pct': '{:,.1%}'.format,
@@ -30,7 +21,7 @@ def report_geocoding(records):
     return (table)
 
 
-def run_geocoding(idx, row, master_table, admin_area, components, country_code):
+def run_geocoding(idx, row, master_table, admin_area, components, country_code, geolocator_bing, geolocator_osm, geolocator_google):
     """
     Geocoding workflow to be applied to each row in a dataset
 
@@ -46,14 +37,22 @@ def run_geocoding(idx, row, master_table, admin_area, components, country_code):
         Stores geocoding results in master_table object
     """
     admin_bounds = admin_area.bounds
-    bb = [(admin_bounds.iloc[0].miny, admin_bounds.iloc[0].minx),
-          (admin_bounds.iloc[0].maxy, admin_bounds.iloc[0].maxx)]
+
+    try:
+        bb = [(admin_bounds.iloc[0].miny, admin_bounds.iloc[0].minx),
+              (admin_bounds.iloc[0].maxy, admin_bounds.iloc[0].maxx)]
+    except:
+        print(f"Error getting bounds for: {admin_area.shapeName}")
+        bb = []
+
     method = ' and '.join(components)
     items = [row[item] for item in components]
+    #print(f"Items: {items}")
     query = ', '.join(items)
 
     geocoding_result = None
     geocoding_method = "None"
+
     # Try Geocoding with OSM
     try:
         res = geolocator_osm.geocode(query, country_codes=country_code)
@@ -74,18 +73,28 @@ def run_geocoding(idx, row, master_table, admin_area, components, country_code):
             else:
                 raise Exception("Bing point not valid or not within polygon")
         except:
-            # Try Geocoding with Google
-            try:
-                res = geolocator_google.geocode(query=query, region=country_code, bounds=bb)
-                if res:
-                    # if within admin
-                    if admin_area.contains(Point(res.longitude, res.latitude)).values[0] == True:
-                        geocoding_result = res
-                        geocoding_method = f"{method} query Google"
-            except:
-                raise Exception("Google point not valid or not within polygon")
+            if len(bb) > 0:
+                # Try Geocoding with Google
+                try:
+                    res = geolocator_google.geocode(query=query, region=country_code, bounds=bb)
+                    if res:
+                        # if within admin
+                        if admin_area.contains(Point(res.longitude, res.latitude)).values[0] == True:
+                            geocoding_result = res
+                            geocoding_method = f"{method} query Google"
+                except:
+                    print(f"{admin_area.shapeName} not within polygon")
+                    raise Exception("Google point not valid or not within polygon")
+            else:
+                print("Didn't find with BING or OSM, no bounding box for Google")
 
     master_table.loc[idx, "geocoding_method"] = geocoding_method
     if geocoding_result:
         master_table.loc[idx, "longitude"] = res.longitude
         master_table.loc[idx, "latitude"] = res.latitude
+    else:
+        master_table.loc[idx, "longitude"] = None
+        master_table.loc[idx, "latitude"] = None
+
+    return master_table
+
